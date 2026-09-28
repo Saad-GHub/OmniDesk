@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OmniDesk - Access</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: var(--color-forest);
+    }
+    .auth-box {
+      background-color: var(--color-sage);
+      padding: 40px;
+      border-radius: 8px;
+      width: 380px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .auth-box h2 { color: var(--color-forest); margin-bottom: 5px; }
+    .auth-box p { color: var(--color-olive); font-size: 0.9rem; margin-bottom: 20px; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid var(--color-olive);
+      border-radius: 4px;
+      background-color: #fff;
+    }
+    .btn-primary { width: 100%; margin-bottom: 10px; }
+    .toggle-link {
+      color: var(--color-forest);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .error-msg { color: #8b0000; font-size: 0.85rem; margin-top: 10px; display: none; }
+    .success-msg { color: #2e5902; font-size: 0.85rem; margin-top: 10px; display: none; font-weight: bold; }
+    
+    /* Hide signup form initially */
+    #signup-form { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="auth-box">
+    <h2>OmniDesk</h2>
+    <p>Devcubix Workspace Access</p>
+    
+    <!-- LOGIN FORM -->
+    <div id="login-form">
+      <input type="text" id="login-username" placeholder="Username">
+      <input type="password" id="login-password" placeholder="Password">
+      <button class="btn-primary" id="btn-login">Secure Login</button>
+      <div class="error-msg" id="login-error">Invalid credentials. Please try again.</div>
+      <p class="toggle-link" id="show-signup">New team member? Create an account</p>
+    </div>
+
+    <!-- SIGN UP FORM -->
+    <div id="signup-form">
+      <input type="text" id="signup-username" placeholder="Choose a Username">
+      <input type="password" id="signup-password" placeholder="Create a Password">
+      <button class="btn-primary" id="btn-signup">Register Account</button>
+      <div class="error-msg" id="signup-error">Registration failed. Username may exist.</div>
+      <div class="success-msg" id="signup-success">Account created! You can now log in.</div>
+      <p class="toggle-link" id="show-login">Back to Login</p>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // UI Toggles
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    
+    document.getElementById('show-signup').addEventListener('click', () => {
+      loginForm.style.display = 'none';
+      signupForm.style.display = 'block';
+    });
+
+    document.getElementById('show-login').addEventListener('click', () => {
+      signupForm.style.display = 'none';
+      loginForm.style.display = 'block';
+    });
+
+    // --- Login Logic ---
+    document.getElementById('btn-login').addEventListener('click', () => {
+      const user = document.getElementById('login-username').value;
+      const pass = document.getElementById('login-password').value;
+      document.getElementById('btn-login').innerText = 'Authenticating...';
+      ipcRenderer.send('attempt-login', { username: user, password: pass });
+    });
+
+    ipcRenderer.on('login-response', (event, response) => {
+      if (response.success) {
+        document.getElementById('btn-login').innerText = 'Loading...';
+      } else {
+        document.getElementById('btn-login').innerText = 'Secure Login';
+        document.getElementById('login-error').style.display = 'block';
+      }
+    });
+
+    // --- Sign Up Logic ---
+    document.getElementById('btn-signup').addEventListener('click', () => {
+      const user = document.getElementById('signup-username').value;
+      const pass = document.getElementById('signup-password').value;
+      
+      if (!user || !pass) return; // Prevent empty submissions
+
+      document.getElementById('btn-signup').innerText = 'Registering...';
+      ipcRenderer.send('attempt-signup', { username: user, password: pass });
+    });
+
+    ipcRenderer.on('signup-response', (event, response) => {
+      document.getElementById('btn-signup').innerText = 'Register Account';
+      if (response.success) {
+        document.getElementById('signup-error').style.display = 'none';
+        document.getElementById('signup-success').style.display = 'block';
+        document.getElementById('signup-username').value = '';
+        document.getElementById('signup-password').value = '';
+      } else {
+        document.getElementById('signup-success').style.display = 'none';
+        document.getElementById('signup-error').style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

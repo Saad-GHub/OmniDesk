@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OmniDesk - Devcubix</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="brand">
+      <h2>OmniDesk</h2>
+      <span class="client-tag">Devcubix</span>
+    </div>
+    
+    <nav class="nav-menu">
+      <button class="nav-btn active" data-tab="home">Home</button>
+      <button class="nav-btn" data-tab="linkedin">LinkedIn</button>
+      <button class="nav-btn" data-tab="clickup">ClickUp</button>
+      <button class="nav-btn" data-tab="slack">Slack</button>
+      <div class="nav-divider"></div>
+      <button class="nav-btn" data-tab="profile">Profile & Settings</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-indicator">
+        <span class="dot"></span>
+        <span class="status-text">Local DB Synced</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Dynamic View Area -->
+  <main class="main-content">
+    <header class="top-header">
+      <div class="search-box">
+        <input type="text" placeholder="Global search across LinkedIn, Slack, ClickUp...">
+      </div>
+      <button class="btn-primary" id="btn-quick-onboard">+ Quick Onboard</button>
+    </header>
+
+    <!-- TAB 1: HOME -->
+    <section id="tab-home" class="tab-pane active">
+      <div class="pane-header">
+        <h1>Unified Workspace Dashboard</h1>
+        <p>Real-time cross-platform activity summary for Devcubix</p>
+      </div>
+      <div class="card pipeline-card">
+        <h3>Automated Cross-Platform Pipeline</h3>
+        <div class="pipeline-track">
+          <div class="step-card"><span class="badge">1. LinkedIn</span><p>Candidate Approved</p></div>
+          <div class="connector">&rarr;</div>
+          <div class="step-card"><span class="badge">2. ClickUp</span><p>Tasks Created</p></div>
+          <div class="connector">&rarr;</div>
+          <div class="step-card"><span class="badge">3. Slack</span><p>Channel Provisioned</p></div>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="card"><h4>Recent LinkedIn Talent</h4><p>3 Candidates awaiting review.</p></div>
+        <div class="card"><h4>Active ClickUp Tasks</h4><p>8 Sprint items in progress.</p></div>
+        <div class="card"><h4>Slack Activity</h4><p>5 unread mentions.</p></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: LINKEDIN -->
+    <section id="tab-linkedin" class="tab-pane">
+      <div class="pane-header"><h1>LinkedIn Pipeline</h1><p>Candidate evaluation</p></div>
+      <div class="card"><p>LinkedIn Integration UI Area</p></div>
+    </section>
+
+    <!-- TAB 3: CLICKUP -->
+    <section id="tab-clickup" class="tab-pane">
+      <div class="pane-header"><h1>ClickUp Sprints</h1><p>Active tasks</p></div>
+      <div class="card"><p>ClickUp Integration UI Area</p></div>
+    </section>
+
+    <!-- TAB 4: SLACK -->
+    <section id="tab-slack" class="tab-pane">
+      <div class="pane-header"><h1>Slack Workspace</h1><p>Team discussions</p></div>
+      <div class="card"><p>Slack Integration UI Area</p></div>
+    </section>
+
+    <!-- TAB 5: PROFILE & SETTINGS (Nested Layout) -->
+    <section id="tab-profile" class="tab-pane">
+      <div class="pane-header">
+        <h1>Account Settings</h1>
+      </div>
+
+      <div class="settings-container card">
+        
+        <!-- Inner Settings Sidebar -->
+        <div class="settings-sidebar">
+          <div class="settings-user-info">
+            <div class="avatar">S</div>
+            <div>
+              <strong>Muhammad Saad Ali Khan</strong>
+              <small>saad_admin</small>
+            </div>
+          </div>
+          <span class="settings-label">MENU</span>
+          <button class="settings-nav-btn active" data-settings="my-profile">My Profile</button>
+          <button class="settings-nav-btn" data-settings="connected-accounts">Connected Accounts</button>
+          <button class="settings-nav-btn" data-settings="security">Security</button>
+        </div>
+
+        <!-- Inner Settings Content Area -->
+        <div class="settings-content">
+          
+          <!-- Section: My Profile -->
+          <div id="settings-my-profile" class="settings-section active">
+            <h2>My Profile</h2>
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>Full Name</h4>
+                <p>The name displayed across the Devcubix workspace.</p>
+              </div>
+              <div class="settings-action">
+                <strong>Muhammad Saad Ali Khan</strong>
+                <button class="btn-text">Edit</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>Email Address</h4>
+                <p>Primary contact for system notifications.</p>
+              </div>
+              <div class="settings-action">
+                <strong>saad@devcubix.local</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Connected Accounts (Integrations) -->
+          <div id="settings-connected-accounts" class="settings-section">
+            <h2>Connected Accounts</h2>
+            <p style="margin-bottom: 20px; color: var(--color-olive);">Authorize your external tools to enable automated workflows.</p>
+            
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>Slack Workspace</h4>
+                <p>Required for automated channel creation and messaging.</p>
+              </div>
+              <div class="settings-action">
+                <span class="status-badge disconnected">Disconnected</span>
+                <button class="btn-secondary" id="btn-auth-slack">Sign In</button>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>ClickUp API</h4>
+                <p>Required for dynamic task assignment and sprint tracking.</p>
+              </div>
+              <div class="settings-action">
+                <span class="status-badge disconnected">Disconnected</span>
+                <button class="btn-secondary" id="btn-auth-clickup">Sign In</button>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>LinkedIn Recruiter</h4>
+                <p>Required for parsing candidate data into the pipeline.</p>
+              </div>
+              <div class="settings-action">
+                <span class="status-badge connected">Authorized</span>
+                <button class="btn-text" style="color: #8b0000;">Revoke</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Security -->
+          <div id="settings-security" class="settings-section">
+            <h2>Security</h2>
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>Password</h4>
+                <p>Set a unique password to protect your local database account.</p>
+              </div>
+              <div class="settings-action">
+                <button class="btn-secondary">Change Password</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
