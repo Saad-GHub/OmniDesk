@@ -12,32 +12,38 @@
       background-color: var(--color-forest);
     }
     .auth-box {
-      background-color: var(--color-sage);
+      background-color: #17171b;
       padding: 40px;
-      border-radius: 8px;
+      border: 1px solid #38383f;
+      border-radius: 16px;
       width: 380px;
       text-align: center;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
     }
-    .auth-box h2 { color: var(--color-forest); margin-bottom: 5px; }
-    .auth-box p { color: var(--color-olive); font-size: 0.9rem; margin-bottom: 20px; }
+    .auth-box h2 { color: var(--text); margin-bottom: 5px; }
+    .auth-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
     input {
       width: 100%;
       padding: 10px;
       margin-bottom: 15px;
-      border: 1px solid var(--color-olive);
-      border-radius: 4px;
-      background-color: #fff;
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      background-color: #101012;
+      color: var(--text);
     }
+    input::placeholder { color: #777780; }
+    .auth-mark { width: 48px; height: 48px; margin: 0 auto 14px; }
+    .auth-mark svg { width: 100%; height: 100%; fill: none; stroke: #f4f2f7; stroke-width: 1.7; stroke-linejoin: round; }
+    .auth-mark svg path:nth-child(2) { fill: #c04cff; stroke: #c04cff; }
     .btn-primary { width: 100%; margin-bottom: 10px; }
     .toggle-link {
-      color: var(--color-forest);
+      color: #d3a3ed;
       font-size: 0.85rem;
       cursor: pointer;
       text-decoration: underline;
     }
-    .error-msg { color: #8b0000; font-size: 0.85rem; margin-top: 10px; display: none; }
-    .success-msg { color: #2e5902; font-size: 0.85rem; margin-top: 10px; display: none; font-weight: bold; }
+    .error-msg { color: #ff9aa9; font-size: 0.85rem; margin-top: 10px; display: none; }
+    .success-msg { color: #7ce0ae; font-size: 0.85rem; margin-top: 10px; display: none; font-weight: bold; }
     
     /* Hide signup form initially */
     #signup-form { display: none; }
@@ -46,6 +52,7 @@
 <body>
 
   <div class="auth-box">
+    <div class="auth-mark" role="img" aria-label="Devcubix logo"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 36 12v16L20 37 4 28V12L20 3Z"/><path d="M12 14h8a6 6 0 0 1 0 12h-8z"/><path d="M20 14h7l-7 12"/></svg></div>
     <h2>OmniDesk</h2>
     <p>Devcubix Workspace Access</p>
     
