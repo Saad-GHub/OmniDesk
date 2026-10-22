@@ -45,15 +45,16 @@ Google classifies `gmail.readonly` as a restricted scope. A testing app can show
 ## B. Set up Slack sign-in
 
 1. Open [Slack API: Your Apps](https://api.slack.com/apps) and create an app in a development workspace you control.
-2. In **OAuth & Permissions**, add this exact redirect URL:
+2. In **OAuth & Permissions**, enable **PKCE**. Slack treats this as a one-way setting; it cannot be disabled without contacting Slack Support. This lets a desktop app sign users in securely without embedding the app secret.
+3. In **OAuth & Permissions → Redirect URLs**, add this exact desktop callback and save it:
 
    ```text
-   https://localhost/omnidesk/oauth/callback
+   http://localhost:43821/omnidesk/oauth/callback
    ```
 
-3. Enable **Sign in with Slack** and use the OpenID scopes `openid`, `profile`, and `email`.
-4. Copy the app's **Client ID** and **Client Secret** from **Basic Information** into `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET` in `.env`.
-5. Restart OmniDesk, click **Connect** beside Slack, and approve the sign-in.
+4. Under **User Token Scopes**, add only the OpenID scopes `openid`, `profile`, and `email`. Leave **Bot Token Scopes** empty for this desktop sign-in app; Slack does not allow bot scopes with a localhost desktop redirect. OmniDesk uses Slack's user-centric OAuth endpoint, opens sign-in in your default browser, and completes the token exchange with PKCE.
+5. Copy the app's **Client ID** from **Basic Information** into `SLACK_CLIENT_ID` in `.env`. A Slack client secret is not used for this PKCE desktop flow.
+6. Restart OmniDesk, click **Connect** beside Slack, approve the sign-in in your normal browser, then return to OmniDesk.
 
 This connection displays the Slack profile identity. It does not read channel messages. Reading workspace content needs a separate Slack API permission setup and user consent; Slack treats Sign in with Slack scopes separately from API scopes. If Slack rejects the localhost redirect, the current local-only setup cannot complete that provider's callback; use a reachable HTTPS callback service or leave Slack as a demo-only integration.
 
@@ -93,6 +94,7 @@ GOOGLE_CLIENT_ID=your-google-desktop-client-id
 GOOGLE_CLIENT_SECRET=
 SLACK_CLIENT_ID=
 SLACK_CLIENT_SECRET=
+SLACK_REDIRECT_URI=http://localhost:43821/omnidesk/oauth/callback
 LINKEDIN_CLIENT_ID=
 LINKEDIN_CLIENT_SECRET=
 CLICKUP_CLIENT_ID=
@@ -104,8 +106,8 @@ Use real app IDs/secrets from your provider developer consoles. Never commit `.e
 
 ## If sign-in fails
 
-- **“App sign-in is not configured”**: put the missing *OmniDesk app* ID (and for Slack/LinkedIn/ClickUp, secret) in `.env`, save it, then restart the app.
-- **`redirect_uri_mismatch` / invalid redirect**: make the provider console's redirect URI exactly match `https://localhost/omnidesk/oauth/callback` for Slack, LinkedIn, and ClickUp. Google uses a Desktop client and the app's dynamic `127.0.0.1` callback instead.
+- **“App sign-in is not configured”**: put the missing *OmniDesk app* ID (and for LinkedIn/ClickUp, secret) in `.env`, save it, then restart the app. Slack uses PKCE and needs only its client ID.
+- **`redirect_uri_mismatch` / invalid redirect**: make the provider console's redirect URI exactly match `http://localhost:43821/omnidesk/oauth/callback` for Slack and `https://localhost/omnidesk/oauth/callback` for LinkedIn and ClickUp. Google uses a Desktop client and the app's dynamic `127.0.0.1` callback instead.
 - **Google “access blocked” or unverified warning**: confirm your Google account is listed as a test user and that Gmail API is enabled. `gmail.readonly` is a restricted scope, so a test warning is expected before app verification.
 - **Google permission expires**: in Testing, reconnect the test account when the authorization expires (Google documents a seven-day expiration for test-user authorizations using non-basic scopes).
 - **No internet**: provider sign-in and live account data cannot work offline. Use mock data for an offline presentation.
@@ -114,5 +116,5 @@ Use real app IDs/secrets from your provider developer consoles. Never commit `.e
 
 - OmniDesk requests Gmail **read-only** access. It shows only a small set of recent inbox message metadata/snippets; it does not send or delete email.
 - Slack and LinkedIn currently show account identity only. ClickUp shows the authorized user identity.
-- Do not ship an Electron installer with Slack, LinkedIn, or ClickUp client secrets embedded in it. For a public/team production release, put secret-bearing OAuth exchanges behind a backend. For a private class demo, keep the app credentials in your local ignored `.env` file.
+- Do not ship an Electron installer with provider client secrets embedded in it. Slack's PKCE desktop flow does not use its client secret. For a public/team production release, put secret-bearing OAuth exchanges behind a backend. For a private class demo, keep any required app credentials in your local ignored `.env` file.
 - Removing an integration from OmniDesk clears its saved local token. Also revoke OmniDesk from the provider's account/app security page if you want to cancel the provider-side grant.

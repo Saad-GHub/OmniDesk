@@ -106,6 +106,7 @@ ipcMain.on('attempt-signup', async (event, credentials) => {
 });
 
 const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'https://localhost/omnidesk/oauth/callback';
+const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI || 'http://localhost:43821/omnidesk/oauth/callback';
 const providers = {
   gmail: {
     clientId: 'GOOGLE_CLIENT_ID', clientSecret: 'GOOGLE_CLIENT_SECRET',
@@ -118,7 +119,9 @@ const providers = {
   },
   slack: {
     clientId: 'SLACK_CLIENT_ID', clientSecret: 'SLACK_CLIENT_SECRET',
-    authorize: 'https://slack.com/openid/connect/authorize', token: 'https://slack.com/api/openid.connect.token',
+    // Slack's user-centric OAuth flow is intended for public desktop clients
+    // that need user tokens only, with no bot scopes or embedded app secret.
+    authorize: 'https://slack.com/oauth/v2_user/authorize', token: 'https://slack.com/api/oauth.v2.user.access',
     scopes: ['openid', 'profile', 'email'],
     profile: async token => {
       const response = await apiJson('https://slack.com/api/openid.connect.userInfo', token);
@@ -197,7 +200,7 @@ function makeAuthorizationUrl(provider, state, verifier, nonce, redirectUri) {
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', state);
-  if (config.scopes.length) url.searchParams.set('scope', config.scopes.join(' '));
+  if (config.scopes.length && provider !== 'slack') url.searchParams.set('scope', config.scopes.join(' '));
   if (provider === 'gmail') {
     url.searchParams.set('access_type', 'offline');
     url.searchParams.set('prompt', 'consent');
@@ -206,7 +209,13 @@ function makeAuthorizationUrl(provider, state, verifier, nonce, redirectUri) {
     url.searchParams.set('code_challenge_method', 'S256');
     url.searchParams.set('nonce', nonce);
   }
-  if (provider === 'slack' || provider === 'linkedin') url.searchParams.set('nonce', nonce);
+  if (provider === 'slack') {
+    // This user-only endpoint takes permissions in scope, with no bot scopes.
+    url.searchParams.set('scope', config.scopes.join(','));
+    url.searchParams.set('code_challenge', base64Url(crypto.createHash('sha256').update(verifier).digest()));
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('nonce', nonce);
+  }
   return url;
 }
 
@@ -224,8 +233,14 @@ async function verifyOidcToken(provider, encodedToken, expectedNonce) {
   if (header.alg !== 'RS256' || !header.kid) throw new Error(`${provider} returned an unsupported identity token.`);
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!audiences.includes(getCredential(provider, 'clientId'))) throw new Error(`${provider} identity did not match this app.`);
-  if (claims.exp * 1000 <= Date.now() || claims.nonce !== expectedNonce) throw new Error(`${provider} identity could not be verified. Please try again.`);
-  const issuers = provider === 'gmail' ? ['https://accounts.google.com', 'accounts.google.com'] : provider === 'slack' ? ['https://slack.com'] : ['https://www.linkedin.com'];
+  const expirationMs = Number(claims.exp) * 1000;
+  if (!Number.isFinite(expirationMs) || expirationMs <= Date.now()) {
+    throw new Error(`${provider} identity token is expired or has no valid expiry. Check your computer's date and time, then try again.`);
+  }
+  if (expectedNonce && claims.nonce !== expectedNonce) {
+    throw new Error(`${provider} identity nonce did not match. Close OmniDesk and retry sign-in.`);
+  }
+  const issuers = provider === 'gmail' ? ['https://accounts.google.com', 'accounts.google.com'] : provider === 'slack' ? ['https://slack.com'] : ['https://www.linkedin.com/oauth'];
   if (!issuers.includes(claims.iss)) throw new Error(`${provider} returned an unexpected identity issuer.`);
   const response = await fetch(jwksUrl);
   if (!response.ok) throw new Error(`Could not retrieve ${provider} identity keys.`);
@@ -244,8 +259,13 @@ async function exchangeCode(provider, code, verifier, redirectUri) {
     code,
     redirect_uri: redirectUri
   });
-  if (getCredential(provider, 'clientSecret')) params.set('client_secret', getCredential(provider, 'clientSecret'));
+  // Slack desktop sign-in uses PKCE as a public client; do not send the app secret.
+  if (provider !== 'slack' && getCredential(provider, 'clientSecret')) params.set('client_secret', getCredential(provider, 'clientSecret'));
   if (provider === 'gmail') {
+    params.set('grant_type', 'authorization_code');
+    params.set('code_verifier', verifier);
+  }
+  if (provider === 'slack') {
     params.set('grant_type', 'authorization_code');
     params.set('code_verifier', verifier);
   }
@@ -313,10 +333,71 @@ async function authorizeGoogle(state, verifier, nonce) {
   }
 }
 
+async function authorizeSlack(state, verifier, nonce) {
+  const redirectUri = new URL(SLACK_REDIRECT_URI);
+  if (redirectUri.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(redirectUri.hostname)) {
+    throw new Error('Slack desktop sign-in requires an HTTP localhost callback URL.');
+  }
+  const server = http.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', error => {
+      if (error.code === 'EADDRINUSE') reject(new Error(`Slack callback port ${redirectUri.port} is already in use. Close the other OmniDesk instance and try again.`));
+      else reject(error);
+    });
+    server.listen(Number(redirectUri.port), redirectUri.hostname, resolve);
+  });
+  const authUrl = makeAuthorizationUrl('slack', state, verifier, nonce, SLACK_REDIRECT_URI);
+  console.log(`[Slack OAuth] PKCE S256 challenge included: ${authUrl.searchParams.has('code_challenge') && authUrl.searchParams.get('code_challenge_method') === 'S256'}; redirect: ${SLACK_REDIRECT_URI}`);
+  try {
+    const code = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Slack sign-in timed out. Please try again.')), 180000);
+      const finish = (error, value) => {
+        clearTimeout(timeout);
+        error ? reject(error) : resolve(value);
+      };
+      server.on('request', async (request, response) => {
+        const callbackUrl = new URL(request.url, SLACK_REDIRECT_URI);
+        if (callbackUrl.pathname !== redirectUri.pathname) {
+          response.writeHead(404).end('Not found.');
+          return;
+        }
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const params = request.method === 'POST'
+          ? new URLSearchParams(Buffer.concat(chunks).toString('utf8'))
+          : callbackUrl.searchParams;
+        if (params.get('state') !== state) {
+          response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Sign-in could not be verified. Return to OmniDesk and try again.');
+          finish(new Error('Sign-in could not be verified. Please try again.'));
+          return;
+        }
+        if (params.get('error')) {
+          const reason = params.get('error_description') || params.get('error');
+          response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end('<!doctype html><title>OmniDesk</title><p>Slack sign-in was cancelled. You can close this page.</p>');
+          finish(new Error(reason));
+          return;
+        }
+        const authorizationCode = params.get('code');
+        if (!authorizationCode) {
+          response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Slack did not provide an authorization code.');
+          finish(new Error('Slack did not provide an authorization code.'));
+          return;
+        }
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end('<!doctype html><title>OmniDesk</title><p>Slack is connected. You can close this page and return to OmniDesk.</p>');
+        finish(null, authorizationCode);
+      });
+      shell.openExternal(authUrl.toString()).catch(finish);
+    });
+    return { code, redirectUri: SLACK_REDIRECT_URI };
+  } finally {
+    server.close();
+  }
+}
+
 async function connectAccount(provider) {
   if (!currentUser) throw new Error('Please sign in to OmniDesk first.');
   if (!providers[provider]) throw new Error('Unknown account provider.');
-  if (!getCredential(provider, 'clientId') || (provider !== 'gmail' && !getCredential(provider, 'clientSecret'))) {
+  if (!getCredential(provider, 'clientId') || (!['gmail', 'slack'].includes(provider) && !getCredential(provider, 'clientSecret'))) {
     const providerName = provider === 'gmail' ? 'Google' : provider[0].toUpperCase() + provider.slice(1);
     const missing = !getCredential(provider, 'clientId') ? 'client ID' : 'client secret';
     throw new Error(`${providerName} sign-in is not configured for this OmniDesk app yet (missing its app ${missing}). The app owner sets this up once; your own account password is never entered in OmniDesk.`);
@@ -328,6 +409,19 @@ async function connectAccount(provider) {
     const callback = await authorizeGoogle(state, verifier, nonce);
     const tokenSet = await exchangeCode(provider, callback.code, verifier, callback.redirectUri);
     tokenSet.expires_at = Date.now() + (tokenSet.expires_in || 3600) * 1000;
+    await verifyOidcToken(provider, tokenSet.id_token, nonce);
+    const account = await providers[provider].profile(tokenSet.access_token);
+    const accounts = readAccounts();
+    const localUserId = String(currentUser.id);
+    accounts[localUserId] = accounts[localUserId] || {};
+    accounts[localUserId][provider] = { tokenSet, account, connectedAt: new Date().toISOString(), syncedAt: new Date().toISOString() };
+    writeAccounts(accounts);
+    return { provider, account, connectedAt: accounts[localUserId][provider].connectedAt };
+  }
+
+  if (provider === 'slack') {
+    const callback = await authorizeSlack(state, verifier, nonce);
+    const tokenSet = await exchangeCode(provider, callback.code, verifier, callback.redirectUri);
     await verifyOidcToken(provider, tokenSet.id_token, nonce);
     const account = await providers[provider].profile(tokenSet.access_token);
     const accounts = readAccounts();
@@ -397,11 +491,20 @@ async function connectAccount(provider) {
       };
       authWindow.webContents.session.webRequest.onBeforeRequest(callbackFilter, interceptCallback);
       authWindow.on('closed', () => finish(new Error('Sign-in window was closed.')));
-      authWindow.loadURL(authUrl.toString()).catch(finish);
+      // Electron may reject loadURL with ERR_ABORTED when a redirect/navigation
+      // is intercepted during the OAuth flow. The callback listeners above are
+      // responsible for completing sign-in, so don't fail the flow for that
+      // expected cancellation; the timeout still handles a genuinely stalled login.
+      authWindow.loadURL(authUrl.toString()).catch(error => {
+        if (error?.code !== 'ERR_ABORTED') finish(error);
+      });
     });
 
     const tokenSet = await exchangeCode(provider, callback, verifier, OAUTH_REDIRECT_URI);
-    await verifyOidcToken(provider, tokenSet.id_token, nonce);
+    // ClickUp's OAuth token response is an access token, not an OpenID Connect
+    // identity token. Verify LinkedIn's ID token, then retrieve ClickUp's user
+    // profile directly through its authenticated-user API.
+    if (provider === 'linkedin') await verifyOidcToken(provider, tokenSet.id_token, null);
     const account = await providers[provider].profile(tokenSet.access_token);
     const accounts = readAccounts();
     const localUserId = String(currentUser.id);

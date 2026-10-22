@@ -14,11 +14,11 @@ Electron desktop workspace for connecting a user's own Gmail, Slack, LinkedIn, a
 Follow the full local walkthrough in [OAUTH_SETUP_GUIDE.md](OAUTH_SETUP_GUIDE.md).
 
 - **Google / Gmail:** Create an OAuth client with application type **Desktop app**. The Google client ID is required; its client secret is optional for this installed-app flow. Enable the Gmail API and add your account as a test user while the consent screen is in Testing. The app requests `gmail.readonly`, shows the account identity, and syncs up to six recent inbox messages once per minute while OmniDesk is open.
-- **Slack:** Create a Slack app and enable **Sign in with Slack**. Add the redirect URL from `OAUTH_REDIRECT_URI` under the app's redirect URLs.
+- **Slack:** Create a Slack app, enable **Sign in with Slack** and **PKCE**, and add `http://localhost:43821/omnidesk/oauth/callback` under the app's redirect URLs. OmniDesk uses Slack's user-centric OAuth flow for desktop PKCE sign-in. See `OAUTH_SETUP_GUIDE.md`; PKCE is a one-way app setting.
 - **LinkedIn:** Create a LinkedIn developer app, enable **Sign In with LinkedIn using OpenID Connect**, and add the configured redirect URL to its authorized redirect URLs.
 - **ClickUp:** Create an OAuth app and add the configured redirect URL to its redirect URLs.
 
-For Slack, LinkedIn, and ClickUp, the default redirect URI is `https://localhost/omnidesk/oauth/callback`. Register that exact value in each provider console. For Google, the app uses a temporary loopback callback and opens the system browser; select a Desktop app OAuth client.
+For Slack, the default desktop redirect URI is `http://localhost:43821/omnidesk/oauth/callback`; Slack sign-in opens in the system browser and uses PKCE. LinkedIn and ClickUp use `https://localhost/omnidesk/oauth/callback`. For Google, the app uses a temporary loopback callback and opens the system browser; select a Desktop app OAuth client.
 
 Keep real credentials in `.env`, which is ignored by Git. Each OmniDesk user connects accounts from **Profile → Connected Accounts**. OAuth tokens are encrypted using the current Windows user's secure storage and kept locally on that device. Removing an account clears its saved token from this device; revoke the app in the provider's account security settings to remove its authorization too.
 
