@@ -119,9 +119,9 @@ const providers = {
   },
   slack: {
     clientId: 'SLACK_CLIENT_ID', clientSecret: 'SLACK_CLIENT_SECRET',
-    // Slack's user-centric OAuth flow is intended for public desktop clients
-    // that need user tokens only, with no bot scopes or embedded app secret.
-    authorize: 'https://slack.com/oauth/v2_user/authorize', token: 'https://slack.com/api/oauth.v2.user.access',
+    // Use Slack's OpenID Connect sign-in flow for profile authentication.
+    // Its token endpoint supports PKCE, so this desktop client needs no secret.
+    authorize: 'https://slack.com/openid/connect/authorize', token: 'https://slack.com/api/openid.connect.token',
     scopes: ['openid', 'profile', 'email'],
     profile: async token => {
       const response = await apiJson('https://slack.com/api/openid.connect.userInfo', token);
@@ -210,8 +210,8 @@ function makeAuthorizationUrl(provider, state, verifier, nonce, redirectUri) {
     url.searchParams.set('nonce', nonce);
   }
   if (provider === 'slack') {
-    // This user-only endpoint takes permissions in scope, with no bot scopes.
-    url.searchParams.set('scope', config.scopes.join(','));
+    // Slack's OpenID Connect authorization endpoint expects space-separated scopes.
+    url.searchParams.set('scope', config.scopes.join(' '));
     url.searchParams.set('code_challenge', base64Url(crypto.createHash('sha256').update(verifier).digest()));
     url.searchParams.set('code_challenge_method', 'S256');
     url.searchParams.set('nonce', nonce);
@@ -363,14 +363,18 @@ async function authorizeSlack(state, verifier, nonce) {
         }
         const chunks = [];
         for await (const chunk of request) chunks.push(chunk);
-        const params = request.method === 'POST'
-          ? new URLSearchParams(Buffer.concat(chunks).toString('utf8'))
-          : callbackUrl.searchParams;
+        // Slack OIDC may return parameters using form_post. Preserve query
+        // parameters too, then let the posted form fields take precedence.
+        const params = new URLSearchParams(callbackUrl.searchParams);
+        const bodyParams = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+        for (const [key, value] of bodyParams) params.set(key, value);
         if (params.get('state') !== state) {
+          console.warn(`[Slack OAuth] Callback state mismatch: method=${request.method}; content-type=${request.headers['content-type'] || 'none'}; state-in-query=${callbackUrl.searchParams.has('state')}; state-in-body=${bodyParams.has('state')}; state-matches=${params.has('state') && params.get('state') === state}`);
           response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Sign-in could not be verified. Return to OmniDesk and try again.');
           finish(new Error('Sign-in could not be verified. Please try again.'));
           return;
         }
+        console.log(`[Slack OAuth] Callback state verified: method=${request.method}; state-in-query=${callbackUrl.searchParams.has('state')}; state-in-body=${bodyParams.has('state')}`);
         if (params.get('error')) {
           const reason = params.get('error_description') || params.get('error');
           response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end('<!doctype html><title>OmniDesk</title><p>Slack sign-in was cancelled. You can close this page.</p>');
