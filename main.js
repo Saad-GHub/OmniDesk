@@ -51,6 +51,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
+    icon: path.join(__dirname, 'omnidesk.ico'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
